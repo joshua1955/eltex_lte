@@ -1,21 +1,25 @@
 import requests
+import requests.utils, pickle
 from bs4 import BeautifulSoup
 import sys
 
 login = 'admin'
 password = '1eec6p12'
-ip = '192.168.51.253'
-lic_chet = '82029'
+ip = '192.168.51.254'
+lic_chet = '70551'
 
-def login_cookies(login, password,ip,lic_chet):
+def login_cookies(login, password,ip):
 #Открываем сессию
-	s = requests.Session()
+	session = requests.session()
 #Передаем headers данные для входа
 	login_pass = {'username':login,'password':password,'enter':' Enter '}
 #POST запрос авторизации
-	r = s.post("http://" + ip + "/login",data=login_pass)
+	r = session.post("http://" + ip + "/login",data=login_pass)
+	if r.status_code != 200:
+		print('Something wrong')
+		sys.exit()
 #Сохраняем куки, чтобы можно было заходить без авторизации
-	cookies=s.cookies
+	cookies=session.cookies
 	return cookies
 
 def find_PONMAC(lic_chet,cookies):
@@ -28,10 +32,10 @@ def find_PONMAC(lic_chet,cookies):
 #Парсим html
 	soup = BeautifulSoup(r_find.text, 'html.parser')
 #Куда подключен
-	print('Подключаемся к ' + soup.title.string)
+#	print('Подключаемся к ' + soup.title.string)
 #Если не будет ONT по ID, то завершаем программу
 	if 'No available ONT.' in soup.text:
-		print('Нет такого ЛК на этом станционном терминале\n')
+		print('Нет такого ЛК на этом станционном терминале')
 		sys.exit()
 #Умело парсим данные и сохраняем важные данные в словарь
 	a = soup.thead.find_all('td')
@@ -46,9 +50,9 @@ def find_PONMAC(lic_chet,cookies):
 	for i in range(len(res_a) - 2):
 		dict1.update({res_a[i]:res_b[i]})
 #headers для поиска ONT по MAC
-	MAC = {'mode':'view','type':'olt','from': 'list','olt':dict1.get('Channel'),'onu_count': '1','mac': dict1.get('MAC')}
+	MAC_dict = {'mode':'view','type':'olt','from': 'list','olt':dict1.get('Channel'),'onu_count': '1','mac': dict1.get('MAC')}
 #Post запрос
-	r= requests.post('http://' + ip + '/goform/onu_state',data=MAC)
+	r= requests.post('http://' + ip + '/goform/onu_state',data=MAC_dict,cookies=cookies)
 #Парсим и сохраняем важные данные в словарь
 	soup2 = BeautifulSoup(r.text, 'html.parser')
 	q=soup2.find_all(attrs={'name':"olt"})
@@ -61,14 +65,19 @@ def find_PONMAC(lic_chet,cookies):
 	for i in row2:
 		row_2.extend(i)
 	for i in range(len(row_2)):
-		dict1.update({row_1[i]:row_2[i]})
+		if row_1[i] == "MAC address:" or row_1[i] == "Channel:" or row_1[i] == "State:" :
+			pass
+		else:
+			dict1.update({row_1[i].rstrip(':'):row_2[i]})
+	olt=soup2.find("tr").text
+	dict1.update({"OLT":olt[25:29]})
 	return dict1
 
 #Выводим статистику по pon порту
 def lte_pon_stats(MAC,cookies):
 	ip=cookies.list_domains()[0]
 	#str(dict1.get('MAC'))
-	r_stat=s.get('http://' + ip + '/goform/ont_statistics?nport=PON&ont='+ str(MAC) + '&olt=0&olt_view=0' +'&list_view=1',cookies=cookies)
+	r_stat=requests.get('http://' + ip + '/goform/ont_statistics?nport=PON&ont='+ str(MAC) + '&olt=0&olt_view=0' +'&list_view=1',cookies=cookies)
 	soup=BeautifulSoup(r_stat.text, 'html.parser')
 	stats = soup.find_all('table', class_='data')
 	print(stats)
@@ -85,20 +94,20 @@ def lte_pon_stats(MAC,cookies):
 #Close connection
 def lte_logout(cookies):
 	ip=cookies.list_domains()[0]
-	rclose=s.get('http://' + ip + '/logout',cookies=cookies)
-	s.close()
-
+	rclose=requests.get('http://' + ip + '/logout',cookies=cookies)
 
 #Тащим логи
 def lte_logs(cookies):
 	ip=cookies.list_domains()[0]
 	r_log=requests.get('http://' + ip + '/goform/log_handler',cookies=cookies)
 	soup=BeautifulSoup(r_log.text, 'html.parser')
-	logs_str=str(soup.find_all('textarea'))
-	logs=logs_str.lstrip('[<textarea cols="105" id="log" name="log" nowrap="" readonly="" rows="25">').rstrip('</textarea>]')
+	logs=soup.find('textarea').text.lstrip('\n').rstrip('\n')
 	return logs
 
 
 
-cookies=login_cookies(login,password,ip,lic_chet)
-print(lte_logs(cookies))
+
+cookies=login_cookies(login,password,ip)
+dict=find_PONMAC(lic_chet,cookies)
+print(lte_pon_stats(dict.get('MAC'),cookies))
+lte_logout(cookies)
