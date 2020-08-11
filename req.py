@@ -61,16 +61,41 @@ def find_PONMAC(lic_chet,cookies):
 	row1=soup2.find_all("th","edit-ins")
 	for i in row1:
                 row_1.extend(i)
+#['Type:', 'MAC address:', 'Channel:', 'State:', 'Firmware revision:', 'Laser power:', 'Video laser power:', 
+#'PON Counters', 'MAC', 'LLID', 'State', 'Port', 'State', 'Linked', 'Speed', 'Duplex', 'Flow control', 'Auto-negotiation', 'Counters']
 	row2=soup2.find_all("td","edit-ins",limit=7)
 	for i in row2:
 		row_2.extend(i)
+#['NTE-2', '02:00:22:02:16:D8', '0', 'OK', '2.60', '2.6 uW (-25.9 dBm)', 'n/a']
+#Добавляем новые данные в словарь, исключая повторяющиеся данные
 	for i in range(len(row_2)):
 		if row_1[i] == "MAC address:" or row_1[i] == "Channel:" or row_1[i] == "State:" :
 			pass
 		else:
 			dict1.update({row_1[i].rstrip(':'):row_2[i]})
+
+	lan0_dict={}
+	for i in range(11,len(row_1)-1,1):
+		lan0_dict.update({row_1[i]:''})
+#{'Port': '', 'State': '', 'Linked': '', 'Speed': '', 'Duplex': '', 'Flow control': '', 'Auto-negotiation': ''}
+
+#Добавим значения
+	row=soup2.find_all('tr')
+	port0=row[14]
+	port1=row[15]
+	port0_d=[]
+	port1_d=[]
+	lan1_dict={}
+	for i in port0:
+                port0_d.extend(i)
+	for i in port1:
+        	port1_d.extend(i)
+
+	lan0_dict.update({'Port':port0_d[1],'State':port0_d[2],'Linked':port0_d[3],'Speed':port0_d[5],'Duplex':port0_d[6],'Flow control':port0_d[7],'Auto-negotiation':port0_d[9]})
+	lan1_dict.update({'Port':port1_d[1],'State':port1_d[2],'Linked':port1_d[3],'Speed':port1_d[5],'Duplex':port1_d[6],'Flow control':port1_d[7],'Auto-negotiation':port1_d[9]})
 	olt=soup2.find("tr").text
 	dict1.update({"OLT":olt[25:29]})
+#Добавляем номер olt - OLT0
 	return dict1
 
 #Выводим статистику по pon порту
@@ -80,15 +105,14 @@ def lte_pon_stats(MAC,cookies):
 	r_stat=requests.get('http://' + ip + '/goform/ont_statistics?nport=PON&ont='+ str(MAC) + '&olt=0&olt_view=0' +'&list_view=1',cookies=cookies)
 	soup=BeautifulSoup(r_stat.text, 'html.parser')
 	stats = soup.find_all('table', class_='data')
-	print(stats)
 	stats_dict=[]
-	for stat in stats:
-		stats_dict.append({
-			"TX/RX":stat.find('th').get_text(),
-			stat.find('td').get_text():"num"
-		}
-		)
-	return stats_dict
+#	for stat in stats:
+#		stats_dict.append({
+#			"TX/RX":stat.find('th').get_text(),
+#			stat.find('td').get_text():"num"
+#		}
+#		)
+	return stats
 
 
 #Close connection
