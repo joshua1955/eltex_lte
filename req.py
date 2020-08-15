@@ -2,22 +2,29 @@ import requests
 import requests.utils, pickle
 from bs4 import BeautifulSoup
 import sys
-
 login = 'admin'
 password = '1eec6p12'
-ip = '192.168.51.254'
+ip = '192.168.51.244'
 lic_chet = '70551'
 
 def login_cookies(login, password,ip):
 #Открываем сессию
 	session = requests.session()
+#Проверим доступен ли станционный терминал
+	try:
+		r_test = requests.get('http://'+ ip,timeout=1).url
+		if r_test != ("http://" + ip +  "/login"):
+                	print('Something wrong')
+	except requests.exceptions.ConnectTimeout:
+			print('Server does not response')
+			sys.exit()
 #Передаем headers данные для входа
 	login_pass = {'username':login,'password':password,'enter':' Enter '}
-#POST запрос авторизации
+#POST запрос авторизации и проверка удалось ли авторизоваться
 	r = session.post("http://" + ip + "/login",data=login_pass)
-	if r.status_code != 200:
-		print('Something wrong')
-		sys.exit()
+	if r.url != ("http://" + ip +  "/home"):
+		print('Не удалось авторизоваться')
+		exit()
 #Сохраняем куки, чтобы можно было заходить без авторизации
 	cookies=session.cookies
 	return cookies
@@ -132,6 +139,6 @@ def lte_logs(cookies):
 
 
 cookies=login_cookies(login,password,ip)
-dict=find_PONMAC(lic_chet,cookies)
-print(lte_pon_stats(dict.get('MAC'),cookies))
+#dict=find_PONMAC(lic_chet,cookies)
+#print(lte_pon_stats(dict.get('MAC'),cookies))
 lte_logout(cookies)
