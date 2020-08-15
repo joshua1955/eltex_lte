@@ -1,33 +1,33 @@
 import requests
-import requests.utils, pickle
 from bs4 import BeautifulSoup
 import sys
+
 login = 'admin'
 password = '1eec6p12'
-ip = '192.168.51.244'
+ip = '192.168.51.245'
 lic_chet = '70551'
 
 def login_cookies(login, password,ip):
 #Открываем сессию
-	session = requests.session()
+    session = requests.session()
 #Проверим доступен ли станционный терминал
-	try:
-		r_test = requests.get('http://'+ ip,timeout=1).url
-		if r_test != ("http://" + ip +  "/login"):
-                	print('Something wrong')
-	except requests.exceptions.ConnectTimeout:
-			print('Server does not response')
-			sys.exit()
+    try:
+        if requests.get('http://'+ ip, timeout=1).url != ("http://" + ip +  "/login"):
+            print('Check server\'s IP. Looks like it\'s not ELTEX LTE')
+            exit()
+    except requests.exceptions.ConnectTimeout:
+        print('Check server\'s IP. Server doesn\'t response')
+        sys.exit()
 #Передаем headers данные для входа
-	login_pass = {'username':login,'password':password,'enter':' Enter '}
+    login_pass = {'username':login,'password':password,'enter':' Enter '}
 #POST запрос авторизации и проверка удалось ли авторизоваться
-	r = session.post("http://" + ip + "/login",data=login_pass)
-	if r.url != ("http://" + ip +  "/home"):
-		print('Не удалось авторизоваться')
-		exit()
+    r = session.post("http://" + ip + "/login",data=login_pass)
+    if r.url != ("http://" + ip +  "/home"):
+        print('Не удалось авторизоваться')
+        exit()
 #Сохраняем куки, чтобы можно было заходить без авторизации
-	cookies=session.cookies
-	return cookies
+    cookies=session.cookies
+    return cookies
 
 def find_PONMAC(lic_chet,cookies):
 #headers для поиска ONT по ID
