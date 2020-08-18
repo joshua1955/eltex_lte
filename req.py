@@ -1,23 +1,15 @@
 import requests
 from bs4 import BeautifulSoup
-import sys
 
-login = 'admin'
-password = '1eec6p12'
-ip = '192.168.51.245'
-lic_chet = '70551'
-
-def login_cookies(login, password,ip):
+def LteLoginCookies(login:str, password:str,ip:str):
 #Открываем сессию
     session = requests.session()
 #Проверим доступен ли станционный терминал
     try:
-        if requests.get('http://'+ ip, timeout=1).url != ("http://" + ip +  "/login"):
+        if requests.get('http://'+ ip, timeout=5).url != ("http://" + ip +  "/login"):
             print('Check server\'s IP. Looks like it\'s not ELTEX LTE')
-            exit()
     except requests.exceptions.ConnectTimeout:
         print('Check server\'s IP. Server doesn\'t response')
-        sys.exit()
 #Передаем headers данные для входа
     login_pass = {'username':login,'password':password,'enter':' Enter '}
 #POST запрос авторизации и проверка удалось ли авторизоваться
@@ -29,7 +21,8 @@ def login_cookies(login, password,ip):
     cookies=session.cookies
     return cookies
 
-def find_PONMAC(lic_chet,cookies):
+def Data(lic_chet:str,cookies):
+	main_list=[]
 #headers для поиска ONT по ID
 	LC = {'sort_id':'','sort_up':'','act':'find','desc_find':lic_chet}
 #Вытащим IP из куки
@@ -41,9 +34,9 @@ def find_PONMAC(lic_chet,cookies):
 #Куда подключен
 #	print('Подключаемся к ' + soup.title.string)
 #Если не будет ONT по ID, то завершаем программу
-	if 'No available ONT.' in soup.text:
+	if 'No available ONT.' in soup.text: 
 		print('Нет такого ЛК на этом станционном терминале')
-		sys.exit()
+		exit()
 #Умело парсим данные и сохраняем важные данные в словарь
 	a = soup.thead.find_all('td')
 	res_a = []
@@ -85,50 +78,73 @@ def find_PONMAC(lic_chet,cookies):
 	for i in range(11,len(row_1)-1,1):
 		lan0_dict.update({row_1[i]:''})
 #{'Port': '', 'State': '', 'Linked': '', 'Speed': '', 'Duplex': '', 'Flow control': '', 'Auto-negotiation': ''}
-
 #Добавим значения
 	row=soup2.find_all('tr')
 	port0=row[14]
-	port1=row[15]
 	port0_d=[]
-	port1_d=[]
 	lan1_dict={}
 	for i in port0:
                 port0_d.extend(i)
-	for i in port1:
-        	port1_d.extend(i)
 
 	lan0_dict.update({'Port':port0_d[1],'State':port0_d[2],'Linked':port0_d[3],'Speed':port0_d[5],'Duplex':port0_d[6],'Flow control':port0_d[7],'Auto-negotiation':port0_d[9]})
-	lan1_dict.update({'Port':port1_d[1],'State':port1_d[2],'Linked':port1_d[3],'Speed':port1_d[5],'Duplex':port1_d[6],'Flow control':port1_d[7],'Auto-negotiation':port1_d[9]})
+	main_list.append(lan0_dict)
+
+	if dict1['Type'] == 'NTE-2' or dict1['Type'] == 'NTE-2C':
+		port1_d=[]
+		port1=row[15]
+		for i in port1:
+	                port1_d.extend(i)
+		lan1_dict.update({'Port':port1_d[1],'State':port1_d[2],'Linked':port1_d[3],'Speed':port1_d[5],'Duplex':port1_d[6],'Flow control':port1_d[7],'Auto-negotiation':port1_d[9]})
+		main_list.append(lan1_dict)
+
+#Добавляем номер olt - OLT0
 	olt=soup2.find("tr").text
 	dict1.update({"OLT":olt[25:29]})
-#Добавляем номер olt - OLT0
-	return dict1
+	main_list.append(dict1)
+	return main_list
 
 #Выводим статистику по pon порту
-def lte_pon_stats(MAC,cookies):
+def DataPonStats(MAC:str,PORT:str,cookies):
+#PORT:
+#UNI0 - Lan NTE-2
+#PON - for everybody
+	main_list=[]
 	ip=cookies.list_domains()[0]
-	#str(dict1.get('MAC'))
-	r_stat=requests.get('http://' + ip + '/goform/ont_statistics?nport=PON&ont='+ str(MAC) + '&olt=0&olt_view=0' +'&list_view=1',cookies=cookies)
+	r_stat=requests.get('http://' + ip + '/goform/ont_statistics?nport=' + PORT + '&ont='+ MAC + '&olt=0&olt_view=0' +'&list_view=1',cookies=cookies)
 	soup=BeautifulSoup(r_stat.text, 'html.parser')
-	stats = soup.find_all('table', class_='data')
-	stats_dict=[]
-#	for stat in stats:
-#		stats_dict.append({
-#			"TX/RX":stat.find('th').get_text(),
-#			stat.find('td').get_text():"num"
-#		}
-#		)
-	return stats
+	stats = soup.find('table', class_='data').find_all('td')
+	stats_list=[]
+	for stat in stats:
+		stats_list.extend(stat)
+	stats_dict_received={}
+	stats_dict_transmited={}
+
+	for i in range(len(stats_list)):
+		if PORT =='PON':
+			if i%2 == 0 and i<28:
+				stats_dict_received.update({stats_list[i].rstrip('.'):stats_list[i+1]})
+			elif i%2 == 0 and i>27:
+				stats_dict_transmited.update({stats_list[i].rstrip('.'):stats_list[i+1]})
+		else:
+			if i%2 == 0 and i<36:
+				stats_dict_received.update({stats_list[i].rstrip('.'):stats_list[i+1]})
+			elif i%2 == 0 and i>35:
+				stats_dict_transmited.update({stats_list[i].rstrip('.'):stats_list[i+1]})
+
+	main_list.append(stats_dict_received)
+	main_list.append(stats_dict_transmited)
+# main_list[0] - received
+# main_list[1] - transmited
+	return main_list
 
 
 #Close connection
-def lte_logout(cookies):
+def LteLogout(cookies):
 	ip=cookies.list_domains()[0]
 	rclose=requests.get('http://' + ip + '/logout',cookies=cookies)
 
 #Тащим логи
-def lte_logs(cookies):
+def LteLogs(cookies):
 	ip=cookies.list_domains()[0]
 	r_log=requests.get('http://' + ip + '/goform/log_handler',cookies=cookies)
 	soup=BeautifulSoup(r_log.text, 'html.parser')
@@ -136,9 +152,12 @@ def lte_logs(cookies):
 	return logs
 
 
+login = 'admin'
+password = '1eec6p12'
+ip = '192.168.51.251'
+lic_chet = '70033'
 
-
-cookies=login_cookies(login,password,ip)
-#dict=find_PONMAC(lic_chet,cookies)
-#print(lte_pon_stats(dict.get('MAC'),cookies))
-lte_logout(cookies)
+cookies=LteLoginCookies(login,password,ip)
+dict=Data(lic_chet,cookies)
+print(DataPonStats(dict[2].get('MAC'),'UNI0',cookies)[1])
+#LteLogout(cookies)
