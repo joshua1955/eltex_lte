@@ -150,14 +150,3 @@ def LteLogs(cookies):
 	soup=BeautifulSoup(r_log.text, 'html.parser')
 	logs=soup.find('textarea').text.lstrip('\n').rstrip('\n')
 	return logs
-
-
-login = 'admin'
-password = '1eec6p12'
-ip = '192.168.51.251'
-lic_chet = '70033'
-
-cookies=LteLoginCookies(login,password,ip)
-dict=Data(lic_chet,cookies)
-print(DataPonStats(dict[2].get('MAC'),'UNI0',cookies)[1])
-#LteLogout(cookies)
