@@ -1,8 +1,8 @@
 import eltex_lte_lib
 
 login = 'admin'
-password = '1eec6p12'
-ip = '192.168.51.251'
+password = 'password'
+ip = '192.168.1.1'
 lic_chet = '70033'
 
 cookies=eltex_lte_lib.LteLoginCookies(login,password,ip)
